@@ -1,5 +1,7 @@
 package delone
 
+import convexhull.ConvexHull
+
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scalafx.scene.canvas.Canvas
@@ -7,7 +9,7 @@ import scalafx.scene.canvas.Canvas
 /**
   * Created by Admin on 23.01.2017.
   */
-class Delone(val convexHull: ConvexHull) {
+class Delone(vertexes: ArrayBuffer[Vertex]) {
   @tailrec
   private def firstTriangles(initialPoint: Vertex, points: List[Vertex], acc: List[Triangle]): List[Triangle] = points match {
     case head::next::Nil => Triangle(initialPoint, head, next) :: acc
@@ -15,10 +17,13 @@ class Delone(val convexHull: ConvexHull) {
     case _ => acc
   }
 
+  val (pointsConvex, pointsNotInConvex) =
+    ConvexHull.buildConvexHull(vertexes)
+
 
   val triangles = {
-    val trianglesInCovexHull = firstTriangles(convexHull.pointsConvex.head, convexHull.pointsConvex.tail, Nil).toBuffer
-    val trianglesAll = new ArrayBuffer[Triangle](trianglesInCovexHull.length + convexHull.pointsNotInConvex.length*2)
+    val trianglesInCovexHull = firstTriangles(pointsConvex.head, pointsConvex.tail, Nil).toBuffer
+    val trianglesAll = new ArrayBuffer[Triangle](trianglesInCovexHull.length + pointsNotInConvex.length*2)
     trianglesAll ++= trianglesInCovexHull
   }
 
@@ -98,7 +103,7 @@ class Delone(val convexHull: ConvexHull) {
     (trianglesToAdd ++ neigbours).combinations(2).foreach(x => angleProtiv(x(0),x(1)))
   }
 
-  def deloneAll(): Unit = convexHull.pointsNotInConvex.tail.foreach(vertex => addVertexAndRebuild(vertex))
+  def deloneAll(): Unit = pointsNotInConvex.tail.foreach(vertex => addVertexAndRebuild(vertex))
 }
 
 object Delone {
