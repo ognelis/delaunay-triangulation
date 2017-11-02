@@ -2,7 +2,8 @@
   * Created by Admin on 20.09.2016.
   */
 
-import delone.{Delone, Vertex}
+import delone.Delone
+import geometry.Vertex
 
 import scala.annotation.tailrec
 import scala.concurrent._
@@ -57,7 +58,7 @@ object Main extends JFXApp {
     onMouseClicked = (e: MouseEvent) => {
       val delone =  new Delone((canva.points ++= randomPoint.pixels).distinct)
 
-      delone.makeEdges()
+      delone.buildAdjacentTriangles
 
       delone.triangles.combinations(2).foreach(x => delone.angleProtiv(x(0), x(1)))
       delone.deloneAll()
