@@ -56,15 +56,8 @@ object Main extends JFXApp {
 
   val computeButton = new Button("compute") {
     onMouseClicked = (e: MouseEvent) => {
-      val delone =  new Delone((canva.points ++= randomPoint.pixels).distinct)
-
-      delone.buildAdjacentTriangles
-
-      delone.triangles.combinations(2).foreach(x => delone.angleProtiv(x(0), x(1)))
-      delone.deloneAll()
-
-      println("It' okay")
-      delone.triangles.filter(_.isDrawable) foreach (x => x.draw(canva))
+      val delone =  new Delone((canva.points ++= randomPoint.pixels).distinct, canvasWidth, canvasHeight)
+      delone.run(canva)
     }
   }
 

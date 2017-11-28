@@ -47,14 +47,14 @@ class Triangle(var a: Vertex, var b: Vertex, var c:Vertex) extends Drawable {
     edges.update(2, Edge(a, b))
   }
 
-  def getEdgeVertxesEqality(that: Triangle) = {
+  def getEdge(that: Triangle) = {
     val edge = this.edges intersect that.edges
     if (edge.length == 1) Some(edge.head) else None
   }
 
 
   def neigbourTriangles = {
-    Array(edges(0).triangle2, edges(1).triangle2, edges(2).triangle2).filter(_ != null)
+    Set(edges(0).triangle2, edges(1).triangle2, edges(2).triangle2).filter(_ != null)
   }
 
 
@@ -68,7 +68,7 @@ class Triangle(var a: Vertex, var b: Vertex, var c:Vertex) extends Drawable {
     }
   }
 
-  def vertexes = ArrayBuffer(a, b ,c)
+  def vertexes = List(a, b ,c)
 
 //  def calculateAngle(a: Vertex, b: Vertex, c: Vertex)(canvas: Canvas) = {
 //    val ab = scala.math.sqrt((b.x - a.x)*(b.x - a.x) + (b.y - a.y)*(b.y - a.y))

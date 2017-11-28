@@ -1,10 +1,12 @@
 package delone
 
 import convexhull.ConvexHull
+import delone.cache.DynamicCache
 import geometry.{Triangle, Vertex}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
+import scalafx.scene.canvas.Canvas
 
 
 object Delone {
@@ -24,8 +26,16 @@ object Delone {
 }
 
 
-class Delone(vertexes: mutable.ArrayBuffer[Vertex]) {
-  
+class Delone(vertexes: mutable.ArrayBuffer[Vertex], width: Int, height: Int) {
+  private val (pointsConvex, pointsNotInConvex) =
+    ConvexHull.buildConvexHull(vertexes)
+
+  private val triangles: mutable.Buffer[Triangle] =
+    buildTrianglesInConvexHull(pointsConvex).toBuffer
+
+  private val cache = new DynamicCache(triangles.head, 8)
+
+
   private def buildTrianglesInConvexHull(points: List[Vertex]) = {
     @tailrec
     def go(initialPoint: Vertex, points: List[Vertex], acc: List[Triangle]): List[Triangle] =points match {
@@ -39,24 +49,14 @@ class Delone(vertexes: mutable.ArrayBuffer[Vertex]) {
     }
   }
 
-  val (pointsConvex, pointsNotInConvex) =
-    ConvexHull.buildConvexHull(vertexes)
-
-  val triangles: mutable.Buffer[Triangle] = 
-    buildTrianglesInConvexHull(pointsConvex).toBuffer
-  
-
-  def buildAdjacentTriangles = triangles.combinations(2).foreach(x => x.head.edgeWithOtherTriangle(x(1)))
-
+  def ccw(a: Vertex, b: Vertex, c: Vertex): Double = ConvexHull.ccw(a, b, c)
 
   def angleProtiv(thisTriangle: Triangle, thatTriangle: Triangle): Unit  = {
     thisTriangle
-      .getEdgeVertxesEqality(thatTriangle)
+      .getEdge(thatTriangle)
       .foreach { edge =>
-        val thisVertex = (thisTriangle.vertexes - edge.a - edge.b).head
-        val thatVertex = (thatTriangle.vertexes - edge.a - edge.b).head
-
-        def ccw(a: Vertex, b: Vertex, c: Vertex): Double = ConvexHull.ccw(a, b, c)
+        val thisVertex = (thisTriangle.vertexes.toBuffer - edge.a - edge.b).head
+        val thatVertex = (thatTriangle.vertexes.toBuffer - edge.a - edge.b).head
 
         val (c, d) = if (ccw(thisVertex, edge.a, edge.b) < 0.0)
           (thatVertex, thisVertex) else (thisVertex, thatVertex)
@@ -65,7 +65,7 @@ class Delone(vertexes: mutable.ArrayBuffer[Vertex]) {
           val newVertexesForThis = Array(edge.a, thisVertex, thatVertex).sorted
           val newVertexesForThat = Array(edge.b, thisVertex, thatVertex).sorted
 
-          val neighbours = (thisTriangle.neigbourTriangles ++ thatTriangle.neigbourTriangles) diff Seq(thisTriangle, thatTriangle)
+          val neighbours = (thisTriangle.neigbourTriangles ++ thatTriangle.neigbourTriangles) diff Set(thisTriangle, thatTriangle)
 
           thisTriangle.a = newVertexesForThis(0)
           thisTriangle.b = newVertexesForThis(1)
@@ -85,31 +85,65 @@ class Delone(vertexes: mutable.ArrayBuffer[Vertex]) {
             thisTriangle.edgeWithOtherTriangle(x)
             thatTriangle.edgeWithOtherTriangle(x)
           }
-          neighbours foreach { x => if (thisTriangle.getEdgeVertxesEqality(x).isDefined) angleProtiv(x, thisTriangle) else angleProtiv(x, thatTriangle) }
+
+          neighbours foreach { x =>
+            if (thisTriangle.getEdge(x).isDefined)
+              angleProtiv(x, thisTriangle)
+            else
+              angleProtiv(x, thatTriangle)
+          }
         }
       }
   }
 
 
   def addVertexAndRebuild(vertex: Vertex): Unit = {
-    val triangleToRebuild = triangles.last.findTrinagleForThatPoint(vertex)
-    def neigbours = triangleToRebuild.neigbourTriangles
+    val (x, y, triangleToStartSearch) = cache.findTriangle(vertex)
+    val triangleToRebuild = triangleToStartSearch.findTrinagleForThatPoint(vertex)
+    cache.setTriangleInCache(x, y, triangleToRebuild)
+
+//    val triangleToRebuild = triangles.last.findTrinagleForThatPoint(vertex)
+
+    if (triangleToRebuild.isDrawable) {
+      def neigbours = triangleToRebuild.neigbourTriangles
 
 
-    val firstTriangle  = Triangle(vertex, triangleToRebuild.b, triangleToRebuild.c)
-    val secondTriangle = Triangle(triangleToRebuild.a, vertex, triangleToRebuild.c)
-    val thirdTriangle  = Triangle(triangleToRebuild.a, triangleToRebuild.b, vertex)
+      val firstTriangle = Triangle(vertex, triangleToRebuild.b, triangleToRebuild.c)
+      val secondTriangle = Triangle(triangleToRebuild.a, vertex, triangleToRebuild.c)
+      val thirdTriangle = Triangle(triangleToRebuild.a, triangleToRebuild.b, vertex)
 
-    val trianglesToAdd = Array(firstTriangle, secondTriangle, thirdTriangle)
+      val trianglesToAdd = Array(firstTriangle, secondTriangle, thirdTriangle)
 
-    triangles ++= trianglesToAdd
-    triangleToRebuild.isDrawable = false
+      triangles ++= trianglesToAdd
+      triangleToRebuild.isDrawable = false
 
-    trianglesToAdd.combinations(2).foreach(x => x(0).edgeWithOtherTriangle(x(1)))
-    neigbours.foreach(x => trianglesToAdd.foreach(y => x.edgeWithOtherTriangle(y)))
+      trianglesToAdd.combinations(2).foreach(x => x(0).edgeWithOtherTriangle(x(1)))
+      neigbours.foreach(x => trianglesToAdd.foreach(y => x.edgeWithOtherTriangle(y)))
 
-    (trianglesToAdd ++ neigbours).combinations(2).foreach(x => angleProtiv(x(0),x(1)))
+      (trianglesToAdd ++ neigbours).combinations(2).foreach(x => angleProtiv(x(0), x(1)))
+    }
   }
 
   def deloneAll(): Unit = pointsNotInConvex.tail.foreach(vertex => addVertexAndRebuild(vertex))
+
+  def measuerTime(t: => Unit)(name : String) = {
+    val before = System.currentTimeMillis()
+    t
+    val after = System.currentTimeMillis()
+    println(s"$name ${after - before}")
+  }
+
+  def run(canva: Canvas) = {
+    val before = System.currentTimeMillis()
+    val combinations = triangles.combinations(2)
+
+
+    measuerTime(combinations.foreach(x => x.head.edgeWithOtherTriangle(x(1))))("Edge")
+    measuerTime(combinations.foreach(x => angleProtiv(x(0), x(1))))("Fuck")
+    measuerTime(deloneAll())("Delone")
+    println("It' okay")
+    println()
+
+//    triangles.filter(_.isDrawable) foreach (x => x.draw(canva))
+  }
 }

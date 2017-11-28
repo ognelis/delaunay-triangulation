@@ -32,6 +32,7 @@ object ConvexHull {
     else {
       val buffer = points.toBuffer
 
+      val before = System.currentTimeMillis()
       val pointsConvex = {
         val initialPoint = buffer.remove(buffer.indexOf(buffer.min))
         val pointsOrderedByPolarAngle = buffer.sortBy(point =>
@@ -41,6 +42,9 @@ object ConvexHull {
       }
 
       val pointsNotInConvex = buffer -- pointsConvex
+      val after = System.currentTimeMillis()
+      println(s"Convex ${after - before}")
+
       pointsConvex -> pointsNotInConvex.toList
     }
   }
